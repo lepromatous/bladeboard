@@ -230,3 +230,44 @@ final class ToneStoreTests: XCTestCase {
         XCTAssertEqual(store.load(), tones)
     }
 }
+
+final class GuitarPatchesTests: XCTestCase {
+    static let listing = """
+    <table><tr><td><a href="patches.php?mode=show&amp;unit=KATANAMKII&amp;ID=12485">Gilmour Comfortably Numb</a></td>
+    <td>by jsmith</td><td>2021-03-12</td></tr>
+    <tr><td><a href='patches.php?mode=show&unit=KATANAMKII&ID=12724'><b>Any Colour You Like</b></a> - floydfan</td></tr>
+    <tr><td><a href="patches.php?mode=show&unit=KATANAMKII&ID=12724"><img src="x.png"></a></td></tr></table>
+    <a href="patches.php?unit=KATANAMKII&amp;page=2">2</a> <a href="patches.php?unit=KATANAMKII&page=3">Next &raquo;</a>
+    <a href="patches.php?mode=show&unit=katana&ID=14054">A MkI patch</a>
+    <a href="index.php">Home</a>
+    """
+
+    func testListingFindsMkIIPatchesAndPages() {
+        let page = GuitarPatches.parseListing(Self.listing)
+        XCTAssertEqual(page.patches.map(\.id), [12485, 12724])
+        XCTAssertEqual(page.patches.map(\.title), ["Gilmour Comfortably Numb", "Any Colour You Like"])
+        XCTAssertEqual(page.patches[0].url.absoluteString,
+                       "https://guitarpatches.com/patches.php?mode=show&unit=KATANAMKII&ID=12485")
+        XCTAssertTrue(page.patches[0].details.contains("jsmith"))
+        XCTAssertEqual(page.pages.map(\.absoluteString), [
+            "https://guitarpatches.com/patches.php?unit=KATANAMKII&page=2",
+            "https://guitarpatches.com/patches.php?unit=KATANAMKII&page=3",
+        ])
+    }
+
+    func testDownloadCandidatesPreferFileLinks() {
+        let html = """
+        <a href="login.php">Log in</a> <a href="download.php?id=12485">Download patch</a>
+        <a href="/files/12485/Gilmour.tsl">Gilmour.tsl</a> <a href="patches.php?mode=show&unit=KATANAMKII&ID=1">Other</a>
+        """
+        let base = URL(string: "https://guitarpatches.com/patches.php?mode=show&unit=KATANAMKII&ID=12485")!
+        XCTAssertEqual(GuitarPatches.downloadCandidates(html, baseURL: base).map(\.absoluteString), [
+            "https://guitarpatches.com/download.php?id=12485",
+            "https://guitarpatches.com/files/12485/Gilmour.tsl",
+        ])
+    }
+
+    func testEntities() {
+        XCTAssertEqual(GuitarPatches.plainText("AC&#47;DC &amp; <i>Back</i> in&nbsp;Black &#x2013; live"), "AC/DC & Back in Black – live")
+    }
+}

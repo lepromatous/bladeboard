@@ -29,9 +29,11 @@ AIRSTEP Kat**'s Bluetooth, or over a USB cable.
   any of them, back them up, write the live sound into a slot, and keep your
   own library of tones on the phone. Import and export BOSS Tone Studio
   `.tsl` files, from Files, Mail, AirDrop or Safari.
-- **Get Tones.** guitarpatches.com's Katana MkII section opens inside the
-  app. Download a patch there and it lands in your library, one tap away
-  from the amp.
+- **Get Tones.** The app pulls guitarpatches.com's Katana MkII listing in
+  by itself (scroll and it keeps loading more). Tap + to add a patch to your
+  library, swipe to add it and play it on the amp at once, or add a whole
+  page at once. The site itself is one tap away too, and anything you
+  download there also lands in your library.
 - **Demo mode.** Everything works without an amp, on a copy in the app.
 
 ## Requirements
@@ -85,9 +87,14 @@ library: tap to play, swipe right to favorite, long-press to rename,
 duplicate, share as `.tsl` or delete. Import takes `.tsl` files and this
 app's own exports.
 
-**Get Tones tab.** Browse guitarpatches.com and download as usual. Sign in
-there if the site asks you to. Every `.tsl` you download is added to *My
-tones*, and a banner confirms it.
+**Get Tones tab.** *Discover* lists the Katana MkII patches on
+guitarpatches.com, newest pages first as the site orders them. It loads more
+as you scroll; pull down to refresh. Tap + to add a patch to *My tones* (a
+check mark means it's already there), swipe right to add it and play it on
+the amp, or **Add all** to take everything shown. If a patch page has no
+file the app can find (say the site wants you signed in), it opens that page
+in *Website*. Sign in there once and Discover's downloads use the same
+login. Anything you download in *Website* goes into *My tones* as well.
 
 ## How it talks to the amp
 
@@ -162,9 +169,13 @@ hardware first:
   store an all-zero chain, which leaves the amp on its built-in order. The board
   shows those in the standard order, and a real chain is written only if you
   move a pedal.
-- **guitarpatches.com** is shown as the site itself. Its downloads are
-  caught as they happen, so the app doesn't depend on how the site's pages
-  are laid out. Zip downloads aren't unpacked yet.
+- **guitarpatches.com** has no API, so Discover reads its HTML loosely (see
+  `Core/GuitarPatches.swift`): patches are links to
+  `patches.php?mode=show&unit=KATANAMKII&ID=…`, and the file is whichever
+  link on the patch page turns out to be a valid `.tsl`. The site couldn't be
+  reached from where this was written, so the parser was tested against
+  sample HTML only. If the real markup differs, it fails visibly and
+  *Website* still works. Zip downloads aren't unpacked yet.
 - Not covered yet: the expression pedal, GA-FC and knob assigns (sections
   07–0F), tap tempo, and the global (system) settings.
 

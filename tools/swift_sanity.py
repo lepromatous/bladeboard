@@ -116,7 +116,8 @@ Spacer Divider ScrollView TabView Tab Group Color Circle Capsule Rectangle Round
 Binding State Bindable Environment ViewBuilder ToolbarContentBuilder ToolbarContent ToolbarItem
 ToolbarItemGroup Menu ProgressView CGFloat CGRect Font Animation Form TextField Canvas Shape
 Gesture DragGesture StrokeStyle LinearGradient RadialGradient ImagePaint AppStorage Content
-Context XCTest XCTestCase
+Context XCTest XCTestCase URLSession URLSessionConfiguration WKWebsiteDataStore HTTPCookieStorage
+NSRegularExpression NSString NSRange URLComponents CharacterSet Link
 """.split())
 
 

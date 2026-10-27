@@ -7,7 +7,7 @@ struct RootView: View {
         TabView {
             Tab("Board", systemImage: "rectangle.3.group") { BoardView() }
             Tab("Library", systemImage: "books.vertical") { LibraryView() }
-            Tab("Get Tones", systemImage: "globe") { PatchBrowserView() }
+            Tab("Get Tones", systemImage: "globe") { GetTonesView() }
             Tab("Amp", systemImage: "dot.radiowaves.left.and.right") { ConnectionView() }
         }
         .tint(Theme.accent)
