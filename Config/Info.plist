@@ -15,7 +15,7 @@
 			<string>Alternate</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>com.lepromatous.katanaboard.tsl</string>
+				<string>com.lepromatous.bladeboard.tsl</string>
 			</array>
 		</dict>
 	</array>
@@ -30,7 +30,7 @@
 			<key>UTTypeDescription</key>
 			<string>BOSS Tone Studio Patch</string>
 			<key>UTTypeIdentifier</key>
-			<string>com.lepromatous.katanaboard.tsl</string>
+			<string>com.lepromatous.bladeboard.tsl</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>

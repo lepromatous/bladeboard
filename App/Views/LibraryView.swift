@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 extension UTType {
     /// BOSS Tone Studio patch files. Declared in Info.plist.
-    static let katanaTSL = UTType(importedAs: "com.lepromatous.katanaboard.tsl", conformingTo: .json)
+    static let katanaTSL = UTType(importedAs: "com.lepromatous.bladeboard.tsl", conformingTo: .json)
 }
 
 /// Tones shared as a .tsl file through the share sheet.

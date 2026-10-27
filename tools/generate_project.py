@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Writes KatanaBoard.xcodeproj.
+"""Writes Bladeboard.xcodeproj.
 
 The project uses Xcode's folder-synchronized groups (Xcode 16 and later):
 App/, Core/ and Tests/ are referenced as folders, so adding or removing a
@@ -11,8 +11,8 @@ Xcode:
 
 Two targets:
 
-  KatanaBoard        iOS app. App/ + Core/.
-  KatanaBoardTests   macOS unit tests. Core/ + Tests/. Core is Foundation-only,
+  Bladeboard        iOS app. App/ + Core/.
+  BladeboardTests   macOS unit tests. Core/ + Tests/. Core is Foundation-only,
                      so the protocol, catalog and library code tests on the Mac
                      in seconds with no simulator.
 """
@@ -21,11 +21,11 @@ import hashlib
 import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-PROJECT = ROOT / "KatanaBoard.xcodeproj"
+PROJECT = ROOT / "Bladeboard.xcodeproj"
 
-APP = "KatanaBoard"
-TESTS = "KatanaBoardTests"
-BUNDLE_ID = "com.lepromatous.KatanaBoard"
+APP = "Bladeboard"
+TESTS = "BladeboardTests"
+BUNDLE_ID = "com.lepromatous.Bladeboard"
 IOS_TARGET = "18.0"
 MACOS_TARGET = "14.0"
 
@@ -85,10 +85,10 @@ APP_SETTINGS = {
     "DEVELOPMENT_TEAM": "",
     "GENERATE_INFOPLIST_FILE": "YES",
     "INFOPLIST_FILE": "Config/Info.plist",
-    "INFOPLIST_KEY_CFBundleDisplayName": "Katana Board",
+    "INFOPLIST_KEY_CFBundleDisplayName": "Bladeboard",
     "INFOPLIST_KEY_LSApplicationCategoryType": "public.app-category.music",
     "INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription":
-        "Katana Board uses Bluetooth to reach your Katana through the AIRSTEP Kat.",
+        "Bladeboard uses Bluetooth to reach your Katana through the AIRSTEP Kat.",
     "INFOPLIST_KEY_UIApplicationSceneManifest_Generation": "YES",
     "INFOPLIST_KEY_UILaunchScreen_Generation": "YES",
     "INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad":

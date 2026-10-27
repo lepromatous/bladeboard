@@ -1,4 +1,4 @@
-# Katana Board
+# Bladeboard
 
 An iPhone and iPad editor and librarian for the **BOSS Katana MkII**, laid out
 like a real pedalboard. It reaches the amp wirelessly through the **XSONIC
@@ -47,8 +47,8 @@ AIRSTEP Kat**'s Bluetooth, or over a USB cable.
 
 ## Building
 
-1. Open `KatanaBoard.xcodeproj`.
-2. Select the **KatanaBoard** target → Signing & Capabilities → choose your
+1. Open `Bladeboard.xcodeproj`.
+2. Select the **Bladeboard** target → Signing & Capabilities → choose your
    team. Change the bundle identifier if Xcode asks.
 3. Pick your iPhone and press Run.
 
@@ -60,7 +60,7 @@ mode in the simulator.
 1. Plug the AIRSTEP Kat into the Katana's USB port and switch both on.
 2. Close Katana Librarian, BOSS Tone Studio and the AIRSTEP app. The AIRSTEP
    talks to one app at a time.
-3. In Katana Board, open the **Amp** tab → **Pair AIRSTEP Kat (Bluetooth)…**,
+3. In Bladeboard, open the **Amp** tab → **Pair AIRSTEP Kat (Bluetooth)…**,
    tap "AIRSTEP Kat" in the list, wait for *Connected*, and tap Done.
 4. It appears under Devices and the app connects to it. The app turns on the
    amp's editor mode and reads the patch it's playing. From then on the board
@@ -138,7 +138,7 @@ tools/       catalog generator, project generator, Swift sanity check,
 ## Tests
 
 ```
-xcodebuild test -project KatanaBoard.xcodeproj -scheme KatanaBoardTests -destination 'platform=macOS'
+xcodebuild test -project Bladeboard.xcodeproj -scheme BladeboardTests -destination 'platform=macOS'
 ```
 
 Without Xcode, the Python model of `Core/` runs the same cases:

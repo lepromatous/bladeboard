@@ -30,18 +30,18 @@ final class MIDIConnection {
     private var outputPort = MIDIPortRef()
     private(set) var connected: MIDIDevice?
     private let decoder = OSAllocatedUnfairLock(initialState: UMPDecoder())
-    private let log = Logger(subsystem: "KatanaBoard", category: "MIDI")
+    private let log = Logger(subsystem: "Bladeboard", category: "MIDI")
 
     init() {
-        MIDIClientCreateWithBlock("KatanaBoard" as CFString, &client) { [weak self] notification in
+        MIDIClientCreateWithBlock("Bladeboard" as CFString, &client) { [weak self] notification in
             if notification.pointee.messageID == .msgSetupChanged {
                 DispatchQueue.main.async { self?.onDevicesChanged() }
             }
         }
-        MIDIInputPortCreateWithProtocol(client, "KatanaBoard In" as CFString, ._1_0, &inputPort) { [weak self] list, _ in
+        MIDIInputPortCreateWithProtocol(client, "Bladeboard In" as CFString, ._1_0, &inputPort) { [weak self] list, _ in
             self?.receive(list)
         }
-        MIDIOutputPortCreate(client, "KatanaBoard Out" as CFString, &outputPort)
+        MIDIOutputPortCreate(client, "Bladeboard Out" as CFString, &outputPort)
     }
 
     /// Devices that can both send and receive, which is what the amp needs.

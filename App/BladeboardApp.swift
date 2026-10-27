@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct KatanaBoardApp: App {
+struct BladeboardApp: App {
     @State private var session = AmpSession()
 
     var body: some Scene {
