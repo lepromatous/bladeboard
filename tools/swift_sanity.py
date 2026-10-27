@@ -117,7 +117,8 @@ Binding State Bindable Environment ViewBuilder ToolbarContentBuilder ToolbarCont
 ToolbarItemGroup Menu ProgressView CGFloat CGRect Font Animation Form TextField Canvas Shape
 Gesture DragGesture StrokeStyle LinearGradient RadialGradient ImagePaint AppStorage Content
 Context XCTest XCTestCase URLSession URLSessionConfiguration WKWebsiteDataStore HTTPCookieStorage
-NSRegularExpression NSString NSRange URLComponents CharacterSet Link
+NSRegularExpression NSString NSRange URLComponents CharacterSet Link DateFormatter UIKit UIPasteboard NSNotFound
+CGRect CancellationError NSError NSURLErrorCancelled
 """.split())
 
 

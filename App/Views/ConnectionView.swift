@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Getting to the amp: pair the AIRSTEP Kat over Bluetooth, pick the device,
 /// or explore without an amp.
@@ -49,6 +50,16 @@ struct ConnectionView: View {
                 }
 
                 Section {
+                    NavigationLink { MIDIMonitorView() } label: {
+                        Label("MIDI monitor", systemImage: "waveform.path.ecg.rectangle")
+                    }
+                } header: {
+                    Text("Troubleshooting")
+                } footer: {
+                    Text("Shows every message sent to and received from the amp. If something isn't working, copy it and send it over.")
+                }
+
+                Section {
                     Button { session.startDemo() } label: { Label("Explore without an amp", systemImage: "play.rectangle") }
                 } footer: {
                     Text("Every pedal and setting works on a copy in the app. Nothing is sent anywhere.")
@@ -78,6 +89,52 @@ private struct StepRow: View {
                 .frame(width: 22, height: 22)
                 .background(Circle().fill(Theme.accent.opacity(0.3)))
             Text(text).font(.subheadline)
+        }
+    }
+}
+
+/// Every message to and from the amp, for working out why it isn't answering.
+struct MIDIMonitorView: View {
+    @Environment(AmpSession.self) private var session
+
+    var body: some View {
+        List {
+            Section {
+                Button { Task { await session.testIdentity() } } label: { Label("Ask who's there (identity request)", systemImage: "questionmark.circle") }
+                Button { Task { await session.testReadName() } } label: { Label("Ask for the patch name", systemImage: "textformat") }
+                Button { Task { await session.refresh() } } label: { Label("Read the whole patch", systemImage: "arrow.clockwise") }
+            }
+            .disabled(!session.state.isLive)
+
+            Section {
+                if session.midiLog.isEmpty {
+                    Text("Nothing yet. Connect to the AIRSTEP or tap a test above.").foregroundStyle(.secondary)
+                }
+                ForEach(session.midiLog.reversed()) { line in
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(line.kind.rawValue)
+                            .foregroundStyle(line.kind == .received ? .green : line.kind == .sent ? Theme.accent : .secondary)
+                        Text(line.text)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                    }
+                }
+            } header: {
+                Text("Newest first  ·  → sent  ← received")
+            }
+        }
+        .navigationTitle("MIDI monitor")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                ShareLink(item: session.logText) { Label("Share", systemImage: "square.and.arrow.up") }
+                    .disabled(session.midiLog.isEmpty)
+                Button { UIPasteboard.general.string = session.logText; session.notice = "Copied the MIDI log." } label: {
+                    Label("Copy", systemImage: "doc.on.doc")
+                }
+                .disabled(session.midiLog.isEmpty)
+                Button(role: .destructive) { session.clearLog() } label: { Label("Clear", systemImage: "trash") }
+            }
         }
     }
 }

@@ -21,6 +21,14 @@ final class SysExTests: XCTestCase {
         XCTAssertNil(RolandMessage(bytes: corrupt))
     }
 
+    func testRepliesFromAnyDeviceIDAreAccepted() {
+        let reply = RolandMessage(command: .dataSet, address: .temporary, data: Array("Clean".utf8), device: 0x10)
+        XCTAssertEqual(reply.bytes[2], 0x10)
+        XCTAssertEqual(RolandMessage(bytes: reply.bytes)?.device, 0x10)
+        XCTAssertEqual(RolandMessage(bytes: reply.bytes)?.data, Array("Clean".utf8))
+        XCTAssertEqual(reply.bytes(device: 0x00)[2], 0x00)
+    }
+
     func testAddressArithmetic() {
         let address = KatanaAddress.temporary.patchOffset(5 * 128 + 0x42)
         XCTAssertEqual(address.bytes, [0x60, 0x00, 0x05, 0x42])
@@ -213,6 +221,13 @@ final class MIDIInboundTests: XCTestCase {
         XCTAssertEqual(events, [.patch(base: .temporary, PatchData.initial)])
     }
 
+    func testSectionSizedRepliesApplyByAddress() {
+        var assembler = DumpAssembler()
+        let section = Array(PatchData.initial.stream.prefix(128))
+        let message = RolandMessage.dataSet(.temporary, section)
+        XCTAssertEqual(assembler.handle(message), .bytes(address: .temporary, section))
+    }
+
     func testSmallReportsApplyByAddress() {
         var assembler = DumpAssembler()
         let message = RolandMessage.dataSet(KatanaAddress.temporary.patchOffset(0x22), [0x50])
@@ -265,6 +280,21 @@ final class GuitarPatchesTests: XCTestCase {
             "https://guitarpatches.com/download.php?id=12485",
             "https://guitarpatches.com/files/12485/Gilmour.tsl",
         ])
+    }
+
+    func testListingFromRowHandlers() {
+        let html = """
+        <table class="patches">
+        <tr onclick="document.location='patches.php?mode=show&amp;unit=KATANAMKII&amp;ID=13001'"><td>Comfortably Numb Solo</td><td>gilmourfan</td><td>2022-05-01</td></tr>
+        <tr onclick="window.location.href='https://guitarpatches.com/patches.php?mode=show&unit=KATANAMKII&ID=13002';"><td><b>Thunderstruck</b></td><td>acdc</td></tr>
+        <tr data-href="/patches.php?unit=KATANAMKII&amp;mode=show&amp;ID=13003"><td>Edge of Breakup</td></tr>
+        </table>
+        <script>var next = "patches.php?unit=KATANAMKII&start=40";</script>
+        """
+        let page = GuitarPatches.parseListing(html)
+        XCTAssertEqual(page.patches.map(\.id), [13001, 13002, 13003])
+        XCTAssertEqual(page.patches.map(\.title), ["Comfortably Numb Solo", "Thunderstruck", "Edge of Breakup"])
+        XCTAssertEqual(page.pages.map(\.absoluteString), ["https://guitarpatches.com/patches.php?unit=KATANAMKII&start=40"])
     }
 
     func testEntities() {

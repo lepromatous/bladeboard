@@ -57,19 +57,29 @@ public enum RolandCommand: UInt8, Sendable {
 
 /// One Roland exclusive message to or from the Katana.
 ///
-///     F0 41 00 00 00 00 33 <cmd> <address:4> <data...> <checksum> F7
+///     F0 41 <device> 00 00 00 33 <cmd> <address:4> <data...> <checksum> F7
+///
+/// The device ID is 00 in what the community has captured, but Roland's
+/// default is 10 and amps differ, so replies are accepted from any ID and
+/// the session sends with whichever ID the amp turns out to answer to.
 public struct RolandMessage: Equatable, Sendable {
     public var command: RolandCommand
     public var address: KatanaAddress
     public var data: [UInt8]
+    public var device: UInt8
 
-    public init(command: RolandCommand, address: KatanaAddress, data: [UInt8]) {
+    public init(command: RolandCommand, address: KatanaAddress, data: [UInt8], device: UInt8 = 0x00) {
         self.command = command
         self.address = address
         self.data = data
+        self.device = device
     }
 
-    public static let header: [UInt8] = [0xF0, 0x41, 0x00, 0x00, 0x00, 0x00, 0x33]
+    public static let model: [UInt8] = [0x00, 0x00, 0x00, 0x33]
+
+    public static func header(device: UInt8) -> [UInt8] {
+        [0xF0, 0x41, device & 0x7F] + model
+    }
 
     /// Roland's checksum: whatever brings address + data to a multiple of 128.
     public static func checksum<S: Sequence>(_ bytes: S) -> UInt8 where S.Element == UInt8 {
@@ -86,21 +96,23 @@ public struct RolandMessage: Equatable, Sendable {
         RolandMessage(command: .request, address: address, data: KatanaAddress(value: size).bytes)
     }
 
-    public var bytes: [UInt8] {
+    public var bytes: [UInt8] { bytes(device: device) }
+
+    public func bytes(device: UInt8) -> [UInt8] {
         let body = address.bytes + data
-        return Self.header + [command.rawValue] + body + [Self.checksum(body), 0xF7]
+        return Self.header(device: device) + [command.rawValue] + body + [Self.checksum(body), 0xF7]
     }
 
     /// Parses a complete F0...F7 message. Returns nil for anything that is not
     /// a well-formed Katana message, including a bad checksum.
     public init?(bytes: [UInt8]) {
-        guard bytes.count >= 15, bytes.last == 0xF7,
-              Array(bytes.prefix(7)) == Self.header,
+        guard bytes.count >= 15, bytes[0] == 0xF0, bytes[1] == 0x41, bytes.last == 0xF7,
+              Array(bytes[3..<7]) == Self.model,
               let command = RolandCommand(rawValue: bytes[7]),
               let address = KatanaAddress(bytes[8..<12]) else { return nil }
         let data = Array(bytes[12..<(bytes.count - 2)])
         guard Self.checksum(address.bytes + data) == bytes[bytes.count - 2] else { return nil }
-        self.init(command: command, address: address, data: data)
+        self.init(command: command, address: address, data: data, device: bytes[2])
     }
 }
 
@@ -112,5 +124,10 @@ public enum IdentityRequest {
     public static func isKatanaReply(_ bytes: [UInt8]) -> Bool {
         bytes.count >= 8 && bytes[1] == 0x7E && bytes[3] == 0x06 && bytes[4] == 0x02
             && bytes[5] == 0x41 && bytes[6] == 0x33
+    }
+
+    /// True for any identity reply, from whatever answered.
+    public static func isReply(_ bytes: [UInt8]) -> Bool {
+        bytes.count >= 6 && bytes[1] == 0x7E && bytes[3] == 0x06 && bytes[4] == 0x02
     }
 }

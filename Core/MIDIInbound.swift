@@ -111,8 +111,9 @@ public struct DumpAssembler: Sendable {
         case bytes(address: KatanaAddress, [UInt8])
     }
 
-    /// Larger than any single parameter, smaller than a dump chunk.
-    static let dumpThreshold = 64
+    /// A reply bigger than one section (128 bytes) can only be part of a
+    /// whole-patch dump; anything up to a section applies by address.
+    static let dumpThreshold = 128
 
     private var base: KatanaAddress?
     private var buffer: [UInt8] = []

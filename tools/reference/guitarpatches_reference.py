@@ -20,12 +20,22 @@ def plain(text):
     return re.sub(r"\s+", " ", decode(re.sub(r"<[^>]+>", " ", text))).strip()
 
 
+BARE = re.compile(r"""(?:https?://[^"'\s<>]*?/)?[\w./-]*patches\.php\?[^"'\s<>)\\]+""", re.I)
+
+
 def links(page):
+    """(href, text, trailing, is_anchor) for every anchor, then every bare URL."""
     matches = list(LINK.finditer(page))
     out = []
     for i, m in enumerate(matches):
         end = matches[i + 1].start() if i + 1 < len(matches) else min(len(page), m.end() + 400)
-        out.append((decode(m.group(1)), plain(m.group(2)), plain(page[m.end():min(end, m.end() + 400)])))
+        out.append((decode(m.group(1)), plain(m.group(2)), plain(page[m.end():min(end, m.end() + 400)]), True))
+    for m in BARE.finditer(page):
+        tag_end = page.find(">", m.end())
+        start = m.end() if tag_end == -1 else tag_end + 1
+        after = page[start:start + 600]
+        cell = after.split("</")[0]
+        out.append((decode(m.group(0)), plain(cell)[:80], plain(after[len(cell):]), False))
     return out
 
 
@@ -34,19 +44,25 @@ def query(url):
 
 
 def parse_listing(page, base=LISTING):
-    patches, order, pages = {}, [], []
-    for href, text, trailing in links(page):
+    patches, order, pages, titled = {}, [], [], set()
+    for href, text, trailing, is_anchor in links(page):
         url = urljoin(base, href)
         q = query(url)
         is_unit = q.get("unit", "").lower() == UNIT.lower()
         if is_unit and q.get("mode", "").lower() == "show" and q.get("id", "").isdigit():
             pid = int(q["id"])
             if pid in patches:
-                if len(text) > len(patches[pid]["title"]):
-                    patches[pid]["title"] = text
+                existing = patches[pid]
+                if is_anchor and text and (len(text) > len(existing["title"]) or pid not in titled):
+                    existing["title"] = text
+                    titled.add(pid)
+                elif not existing["title"]:
+                    existing["title"] = text
             else:
                 patches[pid] = {"id": pid, "title": text, "url": url, "details": trailing[:80].strip(" -|·:,")}
                 order.append(pid)
+                if is_anchor and text:
+                    titled.add(pid)
         elif is_unit and "mode" not in q and any(k in q for k in ("page", "start", "p", "pg", "offset", "pagina")) and url not in pages:
             pages.append(url)
     return [patches[i] for i in order], pages
@@ -54,7 +70,7 @@ def parse_listing(page, base=LISTING):
 
 def download_candidates(page, base):
     scored = []
-    for href, text, _ in links(page):
+    for href, text, _, _ in links(page):
         url = urljoin(base, href)
         if not url.startswith("http"):
             continue

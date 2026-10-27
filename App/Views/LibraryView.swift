@@ -103,6 +103,7 @@ struct LibraryView: View {
                         }
                     }
                 }
+                Button { Task { await session.readMemoryNames() } } label: { Label("Read names from the amp", systemImage: "arrow.clockwise") }
                 Button { Task { await session.backUpAll() } } label: { Label("Back up all nine", systemImage: "externaldrive.badge.plus") }
             } else {
                 Text("Connect to the amp to see and back up what's stored on it.")

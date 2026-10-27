@@ -47,6 +47,9 @@ final class AmpSession {
     private(set) var memory: [MemorySlot] = (0..<9).map { MemorySlot(index: $0) }
     private(set) var tones: [Tone] = []
     private(set) var activity: String?
+    /// Everything sent to and received from the amp, newest last, for the
+    /// MIDI monitor.
+    private(set) var midiLog: [MIDILogLine] = []
     var notice: String?
 
     /// Channel buttons in program-change order, as the amp numbers them.
@@ -63,6 +66,9 @@ final class AmpSession {
     @ObservationIgnored private var exclusiveTail: Task<Void, Never>?
     @ObservationIgnored private var lastDump = Date.distantPast
     @ObservationIgnored private var autoConnect = true
+    @ObservationIgnored private var identityWaiter: (token: UUID, continuation: CheckedContinuation<[UInt8]?, Never>)?
+    /// The SysEx device ID the amp answers to (see RolandMessage).
+    @ObservationIgnored private var deviceID = UInt8(UserDefaults.standard.integer(forKey: "deviceID") & 0x7F)
     private var rememberedDevice: MIDIUniqueID? {
         get { UserDefaults.standard.object(forKey: "device") as? MIDIUniqueID }
         set { UserDefaults.standard.set(newValue, forKey: "device") }
@@ -102,14 +108,63 @@ final class AmpSession {
         rememberedDevice = device.id
         state = .connecting(device.name)
         assembler.reset()
-        await midi.send(sysex: RolandMessage.dataSet(.editorMode, [0x01]).bytes)
-        if let live = await readPatch(.temporary) {
+        log(.note, "Opened \(device.name)")
+
+        if let reply = await identify() {
+            if IdentityRequest.isKatanaReply(reply), reply[2] != 0x7F { deviceID = reply[2] }
+            log(.note, IdentityRequest.isKatanaReply(reply)
+                ? "The Katana identified itself (device ID \(Self.hex([reply[2]])))"
+                : "Something answered the identity request, but not as a Katana")
+        } else {
+            log(.note, "No answer to the identity request")
+        }
+
+        var live = await handshake()
+        if live == nil {
+            let tried = deviceID
+            for candidate in [UInt8(0x00), 0x10, 0x7F] where candidate != tried {
+                deviceID = candidate
+                log(.note, "Trying device ID \(Self.hex([candidate]))")
+                live = await handshake()
+                if live != nil { break }
+            }
+            if live == nil { deviceID = tried }
+        }
+
+        state = .connected(device.name)
+        if let live {
+            UserDefaults.standard.set(Int(deviceID), forKey: "deviceID")
             patch = live
-            state = .connected(device.name)
+            log(.note, "Read the live patch \"\(live.name)\"")
             await readMemoryNames()
         } else {
-            state = .connected(device.name)
-            notice = "\(device.name) is connected, but the amp didn't answer. Check the AIRSTEP is plugged into the Katana's USB port and the amp is on, then tap Refresh."
+            notice = "Connected to \(device.name), but the Katana isn't replying. Amp tab → MIDI monitor shows what was sent and what came back; copy it and send it over."
+        }
+    }
+
+    /// Editor mode on, then a small read to prove the amp answers, then the
+    /// whole live patch.
+    private func handshake() async -> PatchData? {
+        outbox.append(.dataSet(.editorMode, [0x01]))
+        await drainOutbox()
+        guard await readName(.temporary) != nil else { return nil }
+        return await readPatch(.temporary)
+    }
+
+    /// Universal identity request: the one message any MIDI device should
+    /// answer, whatever its SysEx device ID.
+    private func identify() async -> [UInt8]? {
+        await withCheckedContinuation { continuation in
+            let token = UUID()
+            identityWaiter = (token, continuation)
+            Task { await self.sendRaw(IdentityRequest.bytes) }
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(1.5))
+                if let waiter = self.identityWaiter, waiter.token == token {
+                    self.identityWaiter = nil
+                    waiter.continuation.resume(returning: nil)
+                }
+            }
         }
     }
 
@@ -221,6 +276,7 @@ final class AmpSession {
     func selectChannel(_ index: Int) {
         guard state.isLive else { return }
         midi.sendProgramChange(UInt8(index))
+        log(.sent, "Program change \(index) (\(Self.channels[index]))")
         let asked = Date()
         Task {
             // In editor mode the amp sends the new patch by itself; only ask
@@ -233,17 +289,60 @@ final class AmpSession {
     func readMemoryNames() async {
         guard state.isLive else { return }
         for slot in 0..<memory.count {
-            let base = KatanaAddress.memory(slot)
-            let reply = await ask(.request(base, size: PatchData.nameLength)) { event in
-                if case .bytes(let address, _) = event { return address == base }
-                return false
-            }
-            if case .bytes(_, let data)? = reply {
-                var name = PatchData()
-                name.write(data, at: 0)
-                memory[slot].name = name.name
-            }
+            if let name = await readName(.memory(slot)) { memory[slot].name = name }
         }
+    }
+
+    private func readName(_ base: KatanaAddress) async -> String? {
+        let reply = await ask(.request(base, size: PatchData.nameLength)) { event in
+            if case .bytes(let address, _) = event { return address == base }
+            return false
+        }
+        guard case .bytes(_, let data)? = reply else { return nil }
+        var name = PatchData()
+        name.write(data, at: 0)
+        return name.name
+    }
+
+    // MARK: - Diagnostics
+
+    func testIdentity() async {
+        if let reply = await identify() {
+            notice = IdentityRequest.isKatanaReply(reply) ? "The Katana answered." : "Something answered, but not as a Katana."
+        } else {
+            notice = "No answer to the identity request."
+        }
+    }
+
+    func testReadName() async {
+        if let name = await readName(.temporary) {
+            notice = "The amp is playing \"\(name)\"."
+        } else {
+            notice = "No answer to the patch-name request."
+        }
+    }
+
+    func clearLog() { midiLog = [] }
+
+    var logText: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss.SSS"
+        return midiLog.map { "\(formatter.string(from: $0.time)) \($0.kind.rawValue) \($0.text)" }.joined(separator: "\n")
+    }
+
+    private func log(_ kind: MIDILogLine.Kind, _ text: String) {
+        midiLog.append(MIDILogLine(time: Date(), kind: kind, text: text))
+        if midiLog.count > 400 { midiLog.removeFirst(midiLog.count - 400) }
+    }
+
+    static func hex(_ bytes: [UInt8], limit: Int = 40) -> String {
+        let shown = bytes.prefix(limit).map { String(format: "%02X", $0) }.joined(separator: " ")
+        return bytes.count > limit ? shown + " … (\(bytes.count) bytes)" : shown
+    }
+
+    private func sendRaw(_ bytes: [UInt8]) async {
+        log(.sent, Self.hex(bytes))
+        await midi.send(sysex: bytes)
     }
 
     func readMemory(_ slot: Int) async -> PatchData? {
@@ -367,8 +466,18 @@ final class AmpSession {
     // MARK: - Talking to the amp
 
     private func handle(_ inbound: MIDIInbound) {
-        guard case .sysex(let bytes) = inbound,
-              let message = RolandMessage(bytes: bytes),
+        switch inbound {
+        case .sysex(let bytes): log(.received, Self.hex(bytes))
+        case .programChange(let channel, let program): log(.received, "Program change \(program) on channel \(channel + 1)")
+        case .controlChange(let channel, let control, let value): log(.received, "CC \(control) = \(value) on channel \(channel + 1)")
+        }
+        guard case .sysex(let bytes) = inbound else { return }
+        if IdentityRequest.isReply(bytes), let waiter = identityWaiter {
+            identityWaiter = nil
+            waiter.continuation.resume(returning: bytes)
+            return
+        }
+        guard let message = RolandMessage(bytes: bytes),
               let event = assembler.handle(message) else { return }
         if let waiter, waiter.match(event) {
             self.waiter = nil
@@ -387,6 +496,8 @@ final class AmpSession {
         }
     }
 
+    /// Reads a whole patch in one request, or if that gets no complete
+    /// reply, one section at a time.
     private func readPatch(_ base: KatanaAddress) async -> PatchData? {
         flushWrites()
         let reply = await ask(.request(base, size: PatchData.requestSize), timeout: .seconds(4)) { event in
@@ -395,7 +506,21 @@ final class AmpSession {
         }
         if case .patch(_, let data)? = reply { return data }
         assembler.reset()
-        return nil
+        log(.note, "No complete whole-patch reply; reading section by section")
+        var patch = PatchData()
+        for (section, size) in PatchData.sectionSizes.enumerated() {
+            let address = base.patchOffset(section * 128)
+            let part = await ask(.request(address, size: size)) { event in
+                if case .bytes(let replyAddress, _) = event { return replyAddress == address }
+                return false
+            }
+            guard case .bytes(_, let data)? = part else {
+                log(.note, "Section \(section) didn't answer")
+                return nil
+            }
+            patch.write(data, at: section * 128)
+        }
+        return patch
     }
 
     /// Sends a request and waits for the reply `match` accepts. Requests run
@@ -410,7 +535,7 @@ final class AmpSession {
             return await withCheckedContinuation { continuation in
                 let token = UUID()
                 self.waiter = Waiter(token: token, match: match, continuation: continuation)
-                Task { await self.midi.send(sysex: message.bytes) }
+                Task { await self.sendRaw(message.bytes(device: self.deviceID)) }
                 Task { @MainActor in
                     try? await Task.sleep(for: timeout)
                     if let waiter = self.waiter, waiter.token == token {
@@ -477,8 +602,21 @@ final class AmpSession {
         defer { draining = false }
         while !outbox.isEmpty {
             let message = outbox.removeFirst()
-            await midi.send(sysex: message.bytes)
+            await sendRaw(message.bytes(device: deviceID))
             try? await Task.sleep(for: .milliseconds(message.data.count > 32 ? 40 : 12))
         }
     }
+}
+
+struct MIDILogLine: Identifiable {
+    enum Kind: String {
+        case sent = "→"
+        case received = "←"
+        case note = "•"
+    }
+
+    let id = UUID()
+    let time: Date
+    let kind: Kind
+    let text: String
 }

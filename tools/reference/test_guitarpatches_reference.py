@@ -33,3 +33,20 @@ def test_download_candidates():
 
 def test_entities():
     assert plain("AC&#47;DC &amp; <i>Back</i> in&nbsp;Black &#x2013; live") == "AC/DC & Back in Black – live"
+
+
+ROWS = """
+<table class="patches">
+<tr onclick="document.location='patches.php?mode=show&amp;unit=KATANAMKII&amp;ID=13001'"><td>Comfortably Numb Solo</td><td>gilmourfan</td><td>2022-05-01</td></tr>
+<tr onclick="window.location.href='https://guitarpatches.com/patches.php?mode=show&unit=KATANAMKII&ID=13002';"><td><b>Thunderstruck</b></td><td>acdc</td></tr>
+<tr data-href="/patches.php?unit=KATANAMKII&amp;mode=show&amp;ID=13003"><td>Edge of Breakup</td></tr>
+</table>
+<script>var next = "patches.php?unit=KATANAMKII&start=40";</script>
+"""
+
+
+def test_listing_from_row_handlers():
+    patches, pages = parse_listing(ROWS)
+    assert [p["id"] for p in patches] == [13001, 13002, 13003]
+    assert [p["title"] for p in patches] == ["Comfortably Numb Solo", "Thunderstruck", "Edge of Breakup"]
+    assert pages == ["https://guitarpatches.com/patches.php?unit=KATANAMKII&start=40"]

@@ -352,7 +352,7 @@ class UMPDecoder:
 
 
 class DumpAssembler:
-    THRESHOLD = 64
+    THRESHOLD = 128
 
     def __init__(self):
         self.base, self.buffer = None, []

@@ -32,10 +32,35 @@ public enum GuitarPatches {
         /// The text between this link and the next one, where listing rows
         /// put authors and dates.
         let trailing: String
+        /// False for a URL found outside an <a href> (an onclick, a script).
+        var isAnchor = true
     }
 
-    /// Every <a href> in a page, with its text.
+    /// Every <a href> in a page with its text, then every patches.php URL
+    /// that appears anywhere else (row onclick handlers, data attributes,
+    /// scripts), titled by the text that follows it.
     static func links(in html: String) -> [Link] {
+        anchors(in: html) + bareURLs(in: html)
+    }
+
+    static func bareURLs(in html: String) -> [Link] {
+        let pattern = #"(?:https?://[^"'\s<>]*?/)?[\w./-]*patches\.php\?[^"'\s<>)\\]+"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return [] }
+        let text = html as NSString
+        return regex.matches(in: html, range: NSRange(location: 0, length: text.length)).map { match in
+            // The visible text after the tag this URL sits in.
+            let tagEnd = text.range(of: ">", options: [], range: NSRange(location: match.range.upperBound, length: text.length - match.range.upperBound))
+            let start = tagEnd.location == NSNotFound ? match.range.upperBound : tagEnd.upperBound
+            let after = text.substring(with: NSRange(location: start, length: min(600, text.length - start)))
+            let cell = after.components(separatedBy: "</").first ?? after
+            return Link(href: decodeEntities(text.substring(with: match.range)),
+                        text: String(plainText(cell).prefix(80)),
+                        trailing: plainText(String(after.dropFirst(cell.count))),
+                        isAnchor: false)
+        }
+    }
+
+    static func anchors(in html: String) -> [Link] {
         let pattern = #"<a\b[^>]*?href\s*=\s*["']([^"']+)["'][^>]*>(.*?)</a>"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive, .dotMatchesLineSeparators]) else { return [] }
         let text = html as NSString
@@ -53,17 +78,25 @@ public enum GuitarPatches {
         var patches: [Int: Patch] = [:]
         var order: [Int] = []
         var pages: [URL] = []
+        var titledByAnchor = Set<Int>()
         for link in links(in: html) {
             guard let url = URL(string: link.href, relativeTo: baseURL)?.absoluteURL,
                   let query = queryItems(url) else { continue }
             let isUnit = query["unit"]?.caseInsensitiveCompare(unit) == .orderedSame
             if isUnit, query["mode"]?.lowercased() == "show", let id = query["id"].flatMap(Int.init) {
                 if var existing = patches[id] {
-                    if link.text.count > existing.title.count { existing.title = link.text }
+                    // Anchor text beats text guessed from around a bare URL.
+                    if link.isAnchor, link.text.count > existing.title.count || !titledByAnchor.contains(id), !link.text.isEmpty {
+                        existing.title = link.text
+                        titledByAnchor.insert(id)
+                    } else if existing.title.isEmpty {
+                        existing.title = link.text
+                    }
                     patches[id] = existing
                 } else {
                     patches[id] = Patch(id: id, title: link.text, url: url, details: summarize(link.trailing))
                     order.append(id)
+                    if link.isAnchor, !link.text.isEmpty { titledByAnchor.insert(id) }
                 }
             } else if isUnit, query["mode"] == nil,
                       query.keys.contains(where: { ["page", "start", "p", "pg", "offset", "pagina"].contains($0) }),

@@ -92,7 +92,17 @@ private struct DiscoverList: View {
     var body: some View {
         List {
             if let problem = feed.problem {
-                Label(problem, systemImage: "exclamationmark.triangle").foregroundStyle(.secondary)
+                Section {
+                    Label(problem, systemImage: "exclamationmark.triangle").foregroundStyle(.secondary)
+                    if let page = feed.lastPage {
+                        ShareLink(item: "\(page.url.absoluteString)\n\n\(page.html)",
+                                  subject: Text("guitarpatches.com page source"),
+                                  preview: SharePreview("guitarpatches.com page source")) {
+                            Label("Share page source", systemImage: "square.and.arrow.up")
+                        }
+                    }
+                    Button { Task { await feed.reload() } } label: { Label("Try again", systemImage: "arrow.clockwise") }
+                }
             }
             ForEach(filtered) { patch in
                 PatchRow(patch: patch, isWorking: feed.working.contains(patch.id), isAdded: feed.added.contains(patch.id)) {
@@ -135,6 +145,9 @@ private struct DiscoverList: View {
         .overlay {
             if feed.patches.isEmpty, feed.isLoading { ProgressView("Loading guitarpatches.com…") }
         }
+        // The page reader's browser lives in the view tree, out of sight, so
+        // pages run exactly as they would on screen.
+        .background(WebView(webView: feed.loader.webView).frame(width: 2, height: 2).opacity(0.01).allowsHitTesting(false))
     }
 
     private var filtered: [GuitarPatches.Patch] {
